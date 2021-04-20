@@ -139,24 +139,27 @@ Proof.
   cbn. reflexivity.
 Qed.
 
+Ltac play pos :=
+  match goal with
+    | [ |- steps _ _ ] => eapply steps_trans; [ play pos | idtac; cbn ]
+    | [ |- step _ _ ] => apply (play_free pos _ _); auto
+  end.
+
+Ltac win pos :=
+  match goal with
+    | [ |- steps _ _ ] => apply steps_one; win pos
+    | [ |- step _ _ ] => apply (play_free pos); auto
+  end.
+
 Example ending :
   exists s, steps (game_start, O) (s, I) /\ winO s = true.
 Proof.
   eexists. split.
-  - eapply steps_trans.
-    apply (play_free A1 O _); auto.
-    cbn.
-    eapply steps_trans.
-    apply (play_free A2 I _); auto.
-    cbn.
-    eapply steps_trans.
-    apply (play_free B1 O _); auto.
-    cbn.
-    eapply steps_trans.
-    apply (play_free B2 I _); auto.
-    cbn.
-    eapply steps_one.
-    apply (play_free C1 O _); auto.
+  - play A1.
+    play A2.
+    play B1.
+    play B2.
+    win C1.
   - reflexivity.
 Qed.
 
