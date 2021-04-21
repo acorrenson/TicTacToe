@@ -1,3 +1,6 @@
+Require Import List.
+Import ListNotations.
+
 Inductive pawn : Type := I | O | U.
 
 Inductive position : Type := A1 | B1 | C1 | A2 | B2 | C2 | A3 | B3 | C3.
@@ -113,10 +116,10 @@ Definition free (pos : position) (board : game) : bool :=
 Definition state : Type := (game * pawn)%type.
 
 Definition winI (board : game) : bool :=
-  diagI board || rowI board.
+  diagI board || rowI board || colI board.
 
 Definition winO (board : game) : bool :=
-  diagO board || rowO board.
+  diagO board || rowO board || colO board.
 
 Definition game_done (board : game) : bool :=
   winI board || winO board.
@@ -127,17 +130,25 @@ Inductive step : state -> state -> Prop :=
     game_done board = false ->
     step (board, p) (set pos board p, inv p).
 
-Inductive steps : state -> state -> Prop :=
-  | steps_one   : forall s1 s2,
-    step s1 s2 -> steps s1 s2
-  | steps_trans : forall s1 s2 s3,
-    step s1 s2 -> steps s2 s3 -> steps s1 s3.
+Notation "s1 --> s2" := (step s1 s2) (at level 80).
 
-Example opening :
-  game_done game_start = false.
-Proof.
-  cbn. reflexivity.
-Qed.
+Inductive steps : state -> state -> Prop :=
+  | steps_one : forall g1 g2,
+    step g1 g2 -> steps g1 g2
+  | steps_trans : forall g1 g2 g3,
+    step g1 g2 -> steps g2 g3 -> steps g1 g3.
+
+Notation "g1 -->> g2" := (steps g1 g2) (at level 80).
+
+Definition On_going (board : game) :=
+  game_done board = false.
+
+Definition Done (board : game) :=
+  game_done board = true.
+
+Lemma On_going_start :
+  On_going game_start.
+Proof. reflexivity. Qed.
 
 Ltac play pos :=
   match goal with
@@ -151,8 +162,8 @@ Ltac win pos :=
     | [ |- step _ _ ] => apply (play_free pos); auto
   end.
 
-Example ending :
-  exists s, steps (game_start, O) (s, I) /\ winO s = true.
+Example game_win_O :
+  exists s, (game_start, O) -->> (s, I) /\ winO s = true.
 Proof.
   eexists. split.
   - play A1.
@@ -163,12 +174,59 @@ Proof.
   - reflexivity.
 Qed.
 
+Definition step_by (g1 : state) (p : position) (g2 : state) : Prop :=
+  step g1 g2 /\ fst g2 = set p (fst g1) (snd g1).
+
+Notation "g1 '-<' p '>->' g2" := (step_by g1 p g2) (at level 80).
+
+Inductive steps_by :  state -> list position -> state -> Prop :=
+  | seq_one : forall g1 g2 p,
+    g1 -<p>-> g2 ->
+    steps_by g1 [p] g2
+  | seq_cons : forall g1 g2 g3 pos seq,
+    steps_by g2 seq g3 ->
+    g1 -<pos>-> g2 ->
+    steps_by g1 (pos::seq) g3.
+
+Notation "g1 '-<' p '>->>' g2" := (steps_by g1 p g2) (at level 80).
 
 
+Lemma steps_by_steps :
+  forall seq g1 g2,
+  g1 -<seq>->> g2 -> g1 -->> g2.
+Proof.
+  induction 1 as [ g1 g2 p [H _] | g1 g2 g3 p seq H1 H2 [H3 _]].
+  - apply (steps_one _ _ H).
+  - apply (steps_trans _ _ _ H3).
+    apply H2.
+Qed.
 
+Lemma step_step_by :
+  forall g1 g2,
+  g1 --> g2 -> exists pos, g1 -<pos>-> g2.
+Proof.
+  intros [g1 p1] [g2 p2] [ pos p board H1 H2 ].
+  exists pos; split.
+  - apply (play_free _ _ _ H1 H2).
+  - reflexivity.
+Qed.
 
+Lemma step_seq :
+  forall g1 g2,
+  g1 -->> g2 -> exists seq, g1 -<seq>->> g2.
+Proof.
+  induction 1 as [ ? ? [ pos ] | g1 g2 g3 H1 H2 (seq & IH)].
+  - exists [pos].
+    apply seq_one; split; auto using step.
+  - apply step_step_by in H1 as (pos & H).
+    exists (pos::seq).
+    apply (seq_cons _ _ _ _ _ IH H).
+Qed.
 
-
-
-
-
+Fixpoint interleave {A} (l1 l2 : list A) : list A :=
+  match l1, l2 with
+  | [], [] => []
+  | x::xs, [] => [x]
+  | [], y::ys => [y]
+  | x::xs, y::ys => x::y::interleave xs ys
+  end.
