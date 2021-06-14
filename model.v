@@ -110,6 +110,23 @@ Proof.
   - induction p, q; simpl; auto; discriminate.
 Qed.
 
+Definition row_eq (r1 r2 : row) : bool :=
+  match r1, r2 with
+  | (a, b, c), (d, e, f) =>
+    pawn_eq a d &&
+    pawn_eq b e &&
+    pawn_eq c f
+  end.
+
+Definition game_eq (g1 g2 : game) : bool :=
+  match g1, g2 with
+  | (a, b, c), (d, e, f) =>
+    row_eq a d &&
+    row_eq b e &&
+    row_eq c f
+  end.
+
+
 Definition free (pos : position) (board : game) : bool :=
   pawn_eq (get pos board) U.
 
@@ -211,7 +228,7 @@ Proof.
   - reflexivity.
 Qed.
 
-Lemma step_seq :
+Lemma steps_steps_by :
   forall g1 g2,
   g1 -->> g2 -> exists seq, g1 -<seq>->> g2.
 Proof.
@@ -230,3 +247,47 @@ Fixpoint interleave {A} (l1 l2 : list A) : list A :=
   | [], y::ys => [y]
   | x::xs, y::ys => x::y::interleave xs ys
   end.
+
+Definition count_row (p : pawn) (r : row) :=
+  match r with
+  | (a, b, c) =>
+      (if pawn_eq p a then 1 else 0)
+    + (if pawn_eq p b then 1 else 0)
+    + (if pawn_eq p c then 1 else 0)
+  end.
+
+Definition count_pawn (p : pawn) (g : game) :=
+  match g with
+  | (a, b, c) =>
+      count_row p a
+    + count_row p b
+    + count_row p c
+  end.
+
+Lemma count_set :
+  forall p pos g, 1 + count_pawn p g = count_pawn p (set pos g p).
+Proof.
+  intros.
+  destruct g as [[[[a1 b1] c1] [[a2 b2] c2]] [[a3 b3] c3]].
+  induction pos; simpl.
+  + assert (pawn_eq p p = true) by (apply pawn_eq_eq; reflexivity).
+    rewrite H.
+Admitted.
+
+  
+Lemma count_step :
+  forall p q g1 g2, (g1, p) --> (g2, q) -> 1 + count_pawn p g1 = count_pawn p g2.
+Proof.
+Admitted.
+  
+
+Lemma score_bounds :
+  forall p q g, (game_start, p) -->> (g, q) ->
+    (count_pawn I g = 1 + count_pawn O g) \/
+    (count_pawn O g = 1 + count_pawn I g).
+Proof.
+  intros.
+  inversion H.
+  - inversion H0; simpl.
+    destruct p0; simpl.
+Admitted.
